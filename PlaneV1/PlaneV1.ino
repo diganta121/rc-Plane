@@ -2,35 +2,46 @@
 #include <nRF24L01.h>
 #include <RF24.h>
 #include <Wire.h>
-#include <Adafruit_MPU6050.h> // Install correct MPU9250 library
+#include <MPU9250.h>
+#include <ESP32Servo.h>
 
-// NRF24L01 Setup
-RF24 radio(7, 8); // CE=GPIO7, CSN=GPIO8 (match transmitter)
-const uint64_t address = 0xTRANS0000;
+#define CE_PIN 7
+#define CSN_PIN 8
+RF24 radio(CE_PIN, CSN_PIN);
+const uint64_t address = 0xFCDBA0000;
 
-// Motor and Servo Pins
-#define MOTOR_PIN 5
-#define SERVO_PITCH_PIN 6
-#define SERVO_ROLL_PIN 7
+// Motor & Servo Pins
+#define MOTOR_C 12
+#define MOTOR_L1 13
+#define MOTOR_L2 14
+#define MOTOR_R1 15
+#define MOTOR_R2 16
+#define SERVO_AIL 17
+#define SERVO_ELEV 18
+#define SERVO_RUD 19
 
-// PWM Configuration
-#define PWM_FREQ 50
-#define PWM_RES 12
+// Configuration
+#define DIFFERENTIAL_GAIN 0.5 // Adjust for turn responsiveness
+#define SIGNAL_TIMEOUT 1000
+MPU9250 mpu;
+Servo aileron, elevator, rudder;
 
-// IMU Setup
-Adafruit_MPU9250 mpu;
-sensors_event_t accel, gyro, temp;
-
-// Data Structure
 struct Packet {
-  uint16_t throttle;
-  uint16_t yaw;
-  uint16_t pitch;
-  uint16_t roll;
-  bool switchState;
+  int16_t throttle;
+  int16_t yaw;
+  int16_t pitch;
+  int16_t roll;
+  bool armed;
+  bool selfLevel;
+  bool calibrate;
 };
 
 Packet rxData;
+unsigned long lastRecv = 0;
+bool prevArmed = false;
+
+// Motor PWM Channels
+const int motorChannels[5] = {0,1,2,3,4}; // C, L1, L2, R1, R2
 
 void setup() {
   Serial.begin(115200);
@@ -41,16 +52,19 @@ void setup() {
   radio.setPALevel(RF24_PA_MAX);
   radio.startListening();
 
-  // Configure PWM
-  ledcSetup(0, PWM_FREQ, PWM_RES); // Channel 0: Motor
-  ledcAttachPin(MOTOR_PIN, 0);
-  ledcSetup(1, PWM_FREQ, PWM_RES); // Channel 1: Pitch servo
-  ledcAttachPin(SERVO_PITCH_PIN, 1);
-  ledcSetup(2, PWM_FREQ, PWM_RES); // Channel 2: Roll servo
-  ledcAttachPin(SERVO_ROLL_PIN, 2);
+  // Configure motors
+  for(int i=0; i<5; i++) {
+    ledcSetup(motorChannels[i], 1000, 12);
+    ledcAttachPin(MOTOR_C + i, motorChannels[i]);
+  }
+
+  // Attach servos
+  aileron.attach(SERVO_AIL);
+  elevator.attach(SERVO_ELEV);
+  rudder.attach(SERVO_RUD);
 
   // Initialize MPU9250
-  if (!mpu.begin()) {
+  if(!mpu.begin()) {
     Serial.println("MPU9250 not found!");
     while(1);
   }
@@ -58,21 +72,56 @@ void setup() {
   mpu.setGyroRange(MPU9250_RANGE_500_DEG);
 }
 
+void setMotors(bool armed, int16_t throttle, int16_t yaw) {
+  static int16_t center, left, right;
+  
+  if(armed) {
+    center = constrain(throttle, 0, 4095);
+    
+    // Differential thrust calculation
+    int16_t diff = yaw * DIFFERENTIAL_GAIN;
+    left = constrain(throttle + diff, 0, 4095);
+    right = constrain(throttle - diff, 0, 4095);
+  } else {
+    center = left = right = 0;
+  }
+
+  ledcWrite(motorChannels[0], center);  // Center motor
+  ledcWrite(motorChannels[1], left);    // L1
+  ledcWrite(motorChannels[2], left);    // L2
+  ledcWrite(motorChannels[3], right);   // R1
+  ledcWrite(motorChannels[4], right);   // R2
+}
+
 void loop() {
-  if (radio.available()) {
+  if(radio.available()) {
     radio.read(&rxData, sizeof(rxData));
+    lastRecv = millis();
+    
+    // Auto-disarm check
+    if(!prevArmed && rxData.armed) Serial.println("ARMED!");
+    prevArmed = rxData.armed;
+  }
 
-    // Convert throttle to PWM (1000-2000μs range)
-    uint32_t motorPWM = map(rxData.throttle, 0, 4095, 205, 410); // 12-bit to PWM duty
-    ledcWrite(0, motorPWM);
+  // Failsafe disarm
+  if(millis() - lastRecv > SIGNAL_TIMEOUT) {
+    rxData.armed = false;
+    setMotors(false, 0, 0);
+  }
 
-    // Convert servo values (-45° to +45°)
-    uint32_t pitchPWM = map(rxData.pitch, 0, 4095, 205, 410);
-    uint32_t rollPWM = map(rxData.roll, 0, 4095, 205, 410);
-    ledcWrite(1, pitchPWM);
-    ledcWrite(2, rollPWM);
-
-    // Read IMU data (for future stabilization)
-    mpu.getEvent(&accel, &gyro, &temp);
+  // Control surfaces
+  if(rxData.armed) {
+    setMotors(true, rxData.throttle, rxData.yaw);
+    aileron.write(map(rxData.roll, -2048, 2048, 0, 180));
+    elevator.write(map(rxData.pitch, -2048, 2048, 0, 180));
+    rudder.write(map(rxData.yaw, -2048, 2048, 0, 180));
+    
+    // Self-level mode (basic implementation)
+    if(rxData.selfLevel) {
+      sensors_event_t a, g, temp;
+      mpu.getEvent(&a, &g, &temp);
+      
+      // Add PID stabilization here
+    }
   }
 }

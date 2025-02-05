@@ -1,87 +1,123 @@
-// // remote side for rc plane
-// // using esp now protocol ~ 50m range
-
+// remote side for rc plane
 
 #include <SPI.h>
 #include <nRF24L01.h>
 #include <RF24.h>
+#include <Bounce2.h>
 
-// NRF24L01 Setup
-RF24 radio(7, 8); // CE=GPIO7, CSN=GPIO8 (adjust pins as needed)
-const uint64_t address = 0xTR00SDF69; // Use same address on receiver
+#define CE_PIN 7
+#define CSN_PIN 8
+RF24 radio(CE_PIN, CSN_PIN);
+const uint64_t address = 0xTRANS0000;
 
 // Joystick Pins
-#define THROTTLE_PIN A0  // Left Y-axis
-#define YAW_PIN      A1  // Left X-axis
-#define PITCH_PIN    A2  // Right Y-axis
-#define ROLL_PIN     A3  // Right X-axis
-#define SWITCH_PIN   9   // Optional toggle switch
+#define THROTTLE_PIN A0
+#define YAW_PIN      A1
+#define PITCH_PIN    A2
+#define ROLL_PIN     A3
 
-// Data Structure
+// Buttons & LEDs
+#define ARM_BTN 4
+#define MODE_BTN 5
+#define CONN_LED 10
+#define MODE_LED 11
+Bounce armDebouncer = Bounce();
+Bounce modeDebouncer = Bounce();
+
+// Calibration
+uint16_t throttleNeutral, yawNeutral, pitchNeutral, rollNeutral;
+bool calibrated = false;
+
 struct Packet {
-  uint16_t throttle;
-  uint16_t yaw;
-  uint16_t pitch;
-  uint16_t roll;
-  bool switchState;
+  int16_t throttle;
+  int16_t yaw;
+  int16_t pitch;
+  int16_t roll;
+  bool armed;
+  bool selfLevel;
+  bool calibrate;
 };
 
 Packet txData;
+unsigned long lastSend = 0;
+
+void calibrateJoysticks() {
+  throttleNeutral = analogRead(THROTTLE_PIN);
+  yawNeutral = analogRead(YAW_PIN);
+  pitchNeutral = analogRead(PITCH_PIN);
+  rollNeutral = analogRead(ROLL_PIN);
+  calibrated = true;
+}
 
 void setup() {
   Serial.begin(115200);
-  pinMode(SWITCH_PIN, INPUT_PULLUP);
   
   // Initialize NRF24
   radio.begin();
   radio.openWritingPipe(address);
-  radio.setPALevel(RF24_PA_MAX); // Adjust power level
+  radio.setPALevel(RF24_PA_MAX);
   radio.stopListening();
+
+  // Initialize buttons & LEDs
+  pinMode(ARM_BTN, INPUT_PULLUP);
+  pinMode(MODE_BTN, INPUT_PULLUP);
+  pinMode(CONN_LED, OUTPUT);
+  pinMode(MODE_LED, OUTPUT);
+  
+  armDebouncer.attach(ARM_BTN);
+  modeDebouncer.attach(MODE_BTN);
+  
+  calibrateJoysticks();
 }
 
 void loop() {
-  // Read analog inputs (12-bit resolution)
-  txData.throttle = analogRead(THROTTLE_PIN);
-  txData.yaw      = analogRead(YAW_PIN);
-  txData.pitch    = analogRead(PITCH_PIN);
-  txData.roll     = analogRead(ROLL_PIN);
-  txData.switchState = !digitalRead(SWITCH_PIN); // Active-low
+  // Read and debounce buttons
+  armDebouncer.update();
+  modeDebouncer.update();
 
-  // Send data
-  radio.write(&txData, sizeof(txData));
-  
-  delay(20); // Adjust delay for transmission rate
+  if(armDebouncer.fell()) txData.armed = !txData.armed;
+  if(modeDebouncer.fell()) txData.selfLevel = !txData.selfLevel;
+
+  // Read and calibrate joysticks
+  if(calibrated) {
+    txData.throttle = analogRead(THROTTLE_PIN) - throttleNeutral;
+    txData.yaw = analogRead(YAW_PIN) - yawNeutral;
+    txData.pitch = analogRead(PITCH_PIN) - pitchNeutral;
+    txData.roll = analogRead(ROLL_PIN) - rollNeutral;
+  }
+
+  // Update LEDs
+  digitalWrite(CONN_LED, radio.isChipConnected());
+  digitalWrite(MODE_LED, txData.selfLevel);
+
+  // Send data every 50ms
+  if(millis() - lastSend >= 50) {
+    radio.write(&txData, sizeof(txData));
+    lastSend = millis();
+  }
 }
+
+
 // #include <esp_now.h>
 // #include <WiFi.h>
 
 // const int deadzone = 35;
-
-
-
 // const int RAxisPin = 33; // side-side yaw
 // const int LAxisPin = 32; // up-down pitch
 // const int LAxisPin = 32; // up-down roll  
-
-
 // const int LSPButton = 35;
 // const int RSPButton = 34;
-
 // #define LED_PIN 19
-
 // int Rvalue = 0;
 // int Lvalue = 0;
 
 // // bool RFB = false;
 // // bool RBB = false;
-
 // // bool LFB = false;
 // // bool LBB = false;
 
 // int Rsp = 1;
 // int Lsp = 1;
-
-
 
 // // REPLACE WITH YOUR RECEIVER MAC Address
 // uint8_t broadcastAddress[] = { 0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E };  // car
@@ -211,8 +247,6 @@ void loop() {
 //     }
 //     return total / 3;
 // }
-
-
 
 // // bool DataDiff(){
 // //   // to check if Data and dataprev is different

@@ -6,7 +6,7 @@
 #include <ESP32Servo.h>
 #include <driver/ledc.h>
 
-#define MOTOR_PWM 5
+#define MOTOR_PWM 4
 #define SERVO_AIL 8
 #define SERVO_ELEV 10
 
@@ -42,7 +42,7 @@ struct Packet {
 };
 #pragma pack(pop)
 
-Packet rxData = {0 ,0 ,0, false, true};
+Packet rxData = {0 ,0 ,0, true, true};
 unsigned long lastRecv = 0;
 bool prevArmed = false;
 
@@ -93,6 +93,7 @@ void setMotor(bool armed, int16_t throttle) {
   int16_t power = armed ? constrain(throttle, 0, 255) : 0;
   ledc_set_duty(LEDC_MODE, LEDC_CHANNEL, power);
   ledc_update_duty(LEDC_MODE, LEDC_CHANNEL);
+
   Serial.println("Motor: " + String(power));
 }
 
@@ -161,19 +162,23 @@ void selfLevelControl() {
 }
 
 void loop() {
-  if (millis() - lastRecv > SIGNAL_TIMEOUT) {
-    rxData.armed = false;
-    setMotor(false, 0);
-  }
-  if (rxData.armed) {
-    setMotor(true, rxData.throttle);
-  } else {
-    setMotor(false, 0);
-  }
-  if (rxData.selfLevel) {
-    selfLevelControl();
-  } else {
-    aileron.write(map(rxData.roll, -255, 255, 0, 180));
-    elevator.write(map(rxData.pitch, -255, 255, 0, 180));
-  }
+  // if (millis() - lastRecv > SIGNAL_TIMEOUT) {
+  //   rxData.armed = false;
+  //   setMotor(false, 0);
+  // }
+  Serial.printf(" armed %d",rxData.armed);
+  Serial.printf(" Thr %d",rxData.throttle);
+  Serial.printf(" elev %d",rxData.pitch);
+  
+  // if (rxData.armed) {
+  setMotor(true, rxData.throttle);
+  // } else {
+    // setMotor(false, 0);
+  // }
+  // if (rxData.selfLevel) {
+  //   selfLevelControl();
+  // } else {
+    // aileron.write(map(rxData.roll, -255, 255, 0, 180));
+    // elevator.write(map(rxData.pitch, -255, 255, 0, 180));
+  //}
 }

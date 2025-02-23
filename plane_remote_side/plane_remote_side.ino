@@ -10,6 +10,7 @@ const int deadzone = 35;
 const int EAxisPin = 33;
 const int LAxisPin = 35;
 const int TAxisPin = 32;
+const int RAxisPin = 34;
 
 const int LSPButton = 21;
 const int RSPButton = 22;
@@ -17,9 +18,11 @@ const int RSPButton = 22;
 #define LED_PIN 19
 
 int Tvalue = 0;
-int Lvalue = 0;
+int Rvalue = 0;
 int Evalue = 0;
 
+
+bool prevArm = false;
 // bool RFB = false;
 // bool RBB = false;
 
@@ -49,10 +52,8 @@ typedef struct struct_message {
   bool selfLevel;
 } struct_message;
 
-struct_message rxData = {0 ,0 ,0, true, true};
-
 // Create a struct_message called Data & peer
-struct_message Data;
+struct_message Data = {0, 0, 0, true, false};
 // struct_message PrevData;
 esp_now_peer_info_t peerInfo;
 
@@ -77,7 +78,7 @@ void errBlink(){
 
 // Function to calibrate joystick
 void calibrateJoystick() {
-    int totalR = 0, totalL = 0;
+    int totalR = 0, totalL = 0,totalE=0;
     int samples = 7; // Number of samples to average for calibration
 
     Serial.println("Calibrating joystick...");
@@ -90,6 +91,7 @@ void calibrateJoystick() {
     // Calculate average default position
     defaultRvalue = map(totalR / samples,4095,0,-255,255);
     defaultLvalue = map(totalL / samples,0,4095,-255,255);
+
     Serial.print("Default RAxis: ");
     Serial.println(defaultRvalue);
     Serial.print("Default LAxis: ");
@@ -112,7 +114,7 @@ void setup() {
   WiFi.mode(WIFI_STA);
 
   pinMode(TAxisPin, INPUT);
-  pinMode(LAxisPin, INPUT);
+  pinMode(RAxisPin, INPUT);
   pinMode(EAxisPin, INPUT);
 
   // pinMode(RBButton, INPUT);
@@ -170,15 +172,6 @@ int analogReadSmooth(int pin) {
 
 
 
-// bool DataDiff(){
-//   // to check if Data and dataprev is different
-//   if(Data.LState == PrevData.LState && Data.RState == PrevData.RState){
-//     return false;
-//   }
-//   PrevData.LState = Data.LState;
-//   PrevData.RState = Data.RState;
-//   return true;
-// }
 
 int stick_value(int sp) {
   int abs_sp = abs(sp);
@@ -202,7 +195,7 @@ int stick_value(int sp) {
 void loop() {
   Tvalue = analogReadSmooth(TAxisPin);
   Evalue = analogReadSmooth(EAxisPin);
-  Lvalue = analogReadSmooth(LAxisPin);
+  Rvalue = analogReadSmooth(RAxisPin);
 
   Rsp = !button_state(RSPButton);
   Lsp = !button_state(LSPButton);
@@ -211,15 +204,15 @@ void loop() {
   Serial.print(" ");
   Serial.print(Evalue);
   Serial.print(" ");
-  Serial.print(Lvalue);
+  Serial.print(Rvalue);
   Serial.print(" ");
-  Tvalue = climit(stick_value(map(Tvalue,4095,0,-255,255))); // reversed //stick_value(Rvalue);
-  Evalue = climit(stick_value(map(Evalue,4095,0,255,-255))); //stick_value(Lvalue);
-
-  // if (Rsp), {
-  //   Rvalue = 255;
-  //   Lvalue = 255;
-  // }
+  Tvalue = climit(stick_value(map(Tvalue,0,4095,-255,255))); // reversed //stick_value(Rvalue);
+  Evalue = climit(stick_value(map(Evalue,0,4095,255,-255))); //stick_value(Lvalue);
+  Rvalue = climit(stick_value(map(Rvalue,0,4095,255,-255)));
+  if (Rsp){
+    // Data.armed =!Data.armed;
+    Serial.print("arm");
+  }
   // if (Lsp) {
   //   Rvalue = Rvalue/2;
   //   Lvalue = Lvalue/2;
@@ -227,10 +220,15 @@ void loop() {
 
   Data.throttle = Tvalue;
   Data.pitch = Evalue;
+  Data.roll = Rvalue;
   
   Serial.print(Tvalue);
   Serial.print(" ");
-  Serial.println(Evalue);
+  Serial.print(Evalue);
+  Serial.print(" ");
+  Serial.print(Rvalue);
+  Serial.print(" ");
+  Serial.println(Data.armed);
 
   // === Send message via ESP-NOW ===
   esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *)&Data, sizeof(Data));
@@ -239,9 +237,10 @@ void loop() {
     Serial.println("S");
   } else {
     Serial.println("E");
+    delay(70);
   }
 
-  delay(5);
+  delay(10);
 }
 
 // #include <SPI.h>

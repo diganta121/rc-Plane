@@ -3,12 +3,23 @@
 #include <esp_now.h>
 #include <MPU9250_WE.h>
 #include <Wire.h>
-// #include <ESP32Servo.h>
+// #include <Servo.h>
+#include <ESP32Servo.h>
 // #include <driver/ledc.h>
 
 #define MOTOR_PWM 4
-#define SERVO_AIL 8
-#define SERVO_ELEV 10
+
+#define SERVO_EL1 3
+#define SERVO_EL2 2
+Servo servoEL1, servoEL2;
+
+// Servo Configuration
+const int servoEL1_offset = 0;  // Adjust for EL1 neutral position
+const int servoEL2_offset = 0;  // Adjust for EL2 neutral position
+const int servoEL1_min = 10;     // Minimum angle for EL1 (degrees)
+const int servoEL1_max = 50;   // Maximum angle for EL1 (degrees)
+const int servoEL2_min = 10;     // Minimum angle for EL2 (degrees)
+const int servoEL2_max = 50;   // Maximum angle for EL2 (degrees)
 
 // #define KP_ROLL 2.0  
 // #define KI_ROLL 0.02 
@@ -30,7 +41,6 @@
 uint8_t newMACAddress[] = { 0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E };
 #define MPU9250_ADDR 0x68
 MPU9250_WE MPU9250 = MPU9250_WE(MPU9250_ADDR);
-// Servo aileron, elevator;
 
 #pragma pack(push, 1)
 struct Packet {
@@ -73,11 +83,6 @@ void OnDataRecv(const esp_now_recv_info_t *recv_info, const uint8_t *incomingDat
   }
 }
 
-// void setupLEDC() {
-//   ledcSetup(LEDC_CHANNEL, LEDC_FREQ, LEDC_RESOLUTION);
-//   ledcAttachPin(MOTOR_PWM, LEDC_CHANNEL);
-// }
- 
 void setMotor(bool armed, int16_t throttle) {
   int16_t power = armed ? (255 - constrain(throttle, 0, 255)) : 255;
   analogWrite(MOTOR_PWM, power);
@@ -87,6 +92,7 @@ void setMotor(bool armed, int16_t throttle) {
 void setup() {
   Serial.begin(115200);
   Wire.begin();
+  pinMode(4,OUTPUT);
   setMotor(false, 0);
 
   if (!MPU9250.init()) {
@@ -110,17 +116,31 @@ void setup() {
 
   esp_now_register_recv_cb(OnDataRecv);
   //setupLEDC();
-  pinMode(4,OUTPUT);
-  // aileron.attach(SERVO_AIL);
-  // elevator.attach(SERVO_ELEV);
+  
+  servoEL1.attach(SERVO_EL1);
+  servoEL2.attach(SERVO_EL2);
 
   lastPIDTime = millis();
 }
 
 void loop() {
-  Serial.printf(" armed %d", rxData.armed);
-  Serial.printf(" Thr %d", rxData.throttle);
-  Serial.printf(" elev %d", rxData.pitch);
-
+  
   setMotor(true, rxData.throttle);
+  
+  // Calculate servo angles with offsets and limits
+  int el1Angle = rxData.pitch + servoEL1_offset;
+  el1Angle = constrain(el1Angle, servoEL1_min, servoEL1_max);
+
+  int el2Angle = rxData.pitch + servoEL2_offset;
+  el2Angle = constrain(el2Angle, servoEL2_min, servoEL2_max);
+
+  // Write angles to servos
+  servoEL1.write(el1Angle);
+  servoEL2.write(el2Angle);
+  Serial.printf(" arm %d ", rxData.armed);
+  Serial.printf(" Thr %d ", rxData.throttle);
+  Serial.printf(" elev %d ", rxData.pitch);
+  Serial.printf(" srv1 %d ", rxData.pitch);
+  Serial.printf(" srv2 %d ", rxData.pitch);
+
 }

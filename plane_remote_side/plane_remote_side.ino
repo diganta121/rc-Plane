@@ -7,10 +7,10 @@
 
 const int deadzone = 35;
 
-const int EAxisPin = 33;
+const int EAxisPin = 34;
 const int LAxisPin = 35;
 const int TAxisPin = 32;
-const int RAxisPin = 34;
+const int RAxisPin = 33;
 
 const int LSPButton = 21;
 const int RSPButton = 22;

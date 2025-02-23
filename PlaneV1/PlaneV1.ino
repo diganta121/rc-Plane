@@ -42,15 +42,15 @@ uint8_t newMACAddress[] = { 0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E };
 #define MPU9250_ADDR 0x68
 MPU9250_WE MPU9250 = MPU9250_WE(MPU9250_ADDR);
 
-#pragma pack(push, 1)
-struct Packet {
+
+typedef struct Packet {
   int16_t throttle;
   int16_t roll;
   int16_t pitch;
   bool armed;
   bool selfLevel;
-};
-#pragma pack(pop)
+} Packet;
+
 
 Packet rxData = {0 ,0 ,0, true, true};
 unsigned long lastRecv = 0;
@@ -140,6 +140,7 @@ void loop() {
   Serial.printf(" arm %d ", rxData.armed);
   Serial.printf(" Thr %d ", rxData.throttle);
   Serial.printf(" elev %d ", rxData.pitch);
+  Serial.printf(" rudder %d ", rxData.roll);
   Serial.printf(" srv1 %d ", rxData.pitch);
   Serial.printf(" srv2 %d ", rxData.pitch);
 

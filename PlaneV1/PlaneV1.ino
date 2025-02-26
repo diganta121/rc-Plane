@@ -15,11 +15,11 @@ Servo servoEL1, servoEL2;
 
 // Servo Configuration
 const int servoEL1_offset = 0;  // Adjust for EL1 neutral position
-const int servoEL2_offset = 0;  // Adjust for EL2 neutral position
+const int servoEL2_offset = 60;  // Adjust for EL2 neutral position
 const int servoEL1_min = 10;     // Minimum angle for EL1 (degrees)
-const int servoEL1_max = 50;   // Maximum angle for EL1 (degrees)
+const int servoEL1_max = 170;   // Maximum angle for EL1 (degrees)
 const int servoEL2_min = 10;     // Minimum angle for EL2 (degrees)
-const int servoEL2_max = 50;   // Maximum angle for EL2 (degrees)
+const int servoEL2_max = 70;   // Maximum angle for EL2 (degrees)
 
 // #define KP_ROLL 2.0  
 // #define KI_ROLL 0.02 
@@ -128,20 +128,20 @@ void loop() {
   setMotor(true, rxData.throttle);
   
   // Calculate servo angles with offsets and limits
-  int el1Angle = rxData.pitch + servoEL1_offset;
-  el1Angle = constrain(el1Angle, servoEL1_min, servoEL1_max);
+  int el1Angle = map(rxData.pitch,-255,255,servoEL1_min,servoEL1_max) + servoEL1_offset;
+  el1Angle = constrain(el1Angle, 1, 179);
 
-  int el2Angle = rxData.pitch + servoEL2_offset;
-  el2Angle = constrain(el2Angle, servoEL2_min, servoEL2_max);
+  int el2Angle = map(rxData.roll,-255,255,servoEL2_min,servoEL2_max) + servoEL2_offset;
+  el2Angle = constrain(el2Angle, 1, 179);
 
   // Write angles to servos
   servoEL1.write(el1Angle);
   servoEL2.write(el2Angle);
+
   Serial.printf(" arm %d ", rxData.armed);
   Serial.printf(" Thr %d ", rxData.throttle);
   Serial.printf(" elev %d ", rxData.pitch);
+  Serial.printf(" a1 %d ", el1Angle);
   Serial.printf(" rudder %d ", rxData.roll);
-  Serial.printf(" srv1 %d ", rxData.pitch);
-  Serial.printf(" srv2 %d ", rxData.pitch);
-
+  Serial.printf(" a2 %d ", el2Angle);
 }

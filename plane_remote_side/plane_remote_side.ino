@@ -5,7 +5,7 @@
 #include <esp_now.h>
 #include <WiFi.h>
 
-const int deadzone = 35;
+const int deadzone = 5;
 
 const int EAxisPin = 34;
 const int LAxisPin = 35;
@@ -58,8 +58,10 @@ struct_message Data = {0, 0, 0, true, false};
 esp_now_peer_info_t peerInfo;
 
 // Variables to store default joystick positions (calibration offsets)
+int defaultTvalue = 0;
+int defaultElvalue = 0;
 int defaultRvalue = 0;
-int defaultLvalue = 0;
+
 
 // callback when data is sent
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
@@ -78,24 +80,27 @@ void errBlink(){
 
 // Function to calibrate joystick
 void calibrateJoystick() {
-    int totalR = 0, totalL = 0,totalE=0;
+    int totalT = 0, totalEl = 0,totalR=0;
     int samples = 7; // Number of samples to average for calibration
 
     Serial.println("Calibrating joystick...");
     for (int i = 0; i < samples; i++) {
-        totalR += analogReadSmooth(TAxisPin);
-        totalL += analogReadSmooth(EAxisPin);
-        delay(10); // Small delay between samples
+        totalT += analogReadSmooth(TAxisPin);
+        totalEl += analogReadSmooth(EAxisPin);
+        totalR += analogReadSmooth(RAxisPin);
+        delay(20); // Small delay between samples
     }
 
     // Calculate average default position
-    defaultRvalue = map(totalR / samples,4095,0,-255,255);
-    defaultLvalue = map(totalL / samples,0,4095,-255,255);
+    defaultTvalue = map(totalT / samples,4095,0,-255,255);
+    defaultElvalue = map(totalEl / samples,0,4095,-255,255);
+    defaultRvalue = map(totalR / samples,0,4095,-255,255);
+
 
     Serial.print("Default RAxis: ");
-    Serial.println(defaultRvalue);
+    Serial.println(defaultTvalue);
     Serial.print("Default LAxis: ");
-    Serial.println(defaultLvalue);
+    Serial.println(defaultElvalue);
 }
 int climit(int n) {
   if (n >= 255) {
@@ -179,8 +184,8 @@ int stick_value(int sp) {
 
   if (abs_sp <= deadzone) {  // Deadzone
     output = 0;
-  } else if (abs_sp <= 250) {                // analog range
-    output = map(abs_sp, 31, 255, 70, 255);  // Scale to 70-280
+  } else if (abs_sp <= 255) {                // analog range
+    output = map(abs_sp, deadzone, 255, 20, 255);  // Scale to 70-280
   }
   else{
     output = 255;
@@ -211,12 +216,13 @@ void loop() {
   Rvalue = climit(stick_value(map(Rvalue,0,4095,255,-255)));
   if (Rsp){
     // Data.armed =!Data.armed;
-    Serial.print("arm");
+    Evalue = Evalue/2;
+    Rvalue = Rvalue/2;
+    Serial.print(" arm ");
   }
-  // if (Lsp) {
-  //   Rvalue = Rvalue/2;
-  //   Lvalue = Lvalue/2;
-  // }
+  if (Lsp) {
+    Evalue = Evalue/2;
+  }
 
   Data.throttle = Tvalue;
   Data.pitch = Evalue;

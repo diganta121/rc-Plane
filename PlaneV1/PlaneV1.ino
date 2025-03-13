@@ -15,11 +15,13 @@ Servo servoEL1, servoEL2;
 
 // Servo Configuration
 const int servoEL1_offset = 0;  // Adjust for EL1 neutral position
-const int servoEL2_offset = 60;  // Adjust for EL2 neutral position
-const int servoEL1_min = 10;     // Minimum angle for EL1 (degrees)
-const int servoEL1_max = 170;   // Maximum angle for EL1 (degrees)
-const int servoEL2_min = 10;     // Minimum angle for EL2 (degrees)
-const int servoEL2_max = 70;   // Maximum angle for EL2 (degrees)
+const int servoEL2_offset = 70;  // Adjust for EL2 neutral position
+
+const int servoEL1_min = 15;     // Minimum angle for EL1 (degrees)
+const int servoEL1_max = 160;   // Maximum angle for EL1 (degrees)
+
+const int servoEL2_min = 0;     // Minimum angle for EL2 (degrees)
+const int servoEL2_max = 110;   // Maximum angle for EL2 (degrees)
 
 // #define KP_ROLL 2.0  
 // #define KI_ROLL 0.02 
@@ -72,7 +74,7 @@ void OnDataRecv(const esp_now_recv_info_t *recv_info, const uint8_t *incomingDat
   if (len == sizeof(Packet)) {
     memcpy(&rxData, incomingData, sizeof(rxData));
     lastRecv = millis();
-    Serial.println("Received data: " + String(rxData.roll) + ", " + String(rxData.pitch) + ", " + String(rxData.throttle));
+    //Serial.print("Received data: " + String(rxData.roll) + ", " + String(rxData.pitch) + ", " + String(rxData.throttle));
 
     if (!prevArmed && rxData.armed) {
       Serial.println("ARMED!");
@@ -85,8 +87,12 @@ void OnDataRecv(const esp_now_recv_info_t *recv_info, const uint8_t *incomingDat
 
 void setMotor(bool armed, int16_t throttle) {
   int16_t power = armed ? (255 - constrain(throttle, 0, 255)) : 255;
-  analogWrite(MOTOR_PWM, power);
   Serial.println("Motor: " + String(power));
+  // if(power >= 255){
+  //   digitalWrite(MOTOR_PWM,HIGH);
+  // }
+  
+  analogWrite(MOTOR_PWM, power);
 }
 
 void setup() {

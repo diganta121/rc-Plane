@@ -7,10 +7,10 @@
 
 const int deadzone = 5;
 
-const int EAxisPin = 34;
-const int LAxisPin = 35;
+const int EAxisPin = 33;
 const int TAxisPin = 32;
-const int RAxisPin = 33;
+const int RAxisPin = 34;
+const int LAxisPin = 35;
 
 const int LSPButton = 21;
 const int RSPButton = 22;
@@ -211,9 +211,9 @@ void loop() {
   Serial.print(" ");
   Serial.print(Rvalue);
   Serial.print(" ");
-  Tvalue = climit(stick_value(map(Tvalue,0,4095,-255,255))); // reversed //stick_value(Rvalue);
-  Evalue = climit(stick_value(map(Evalue,0,4095,255,-255))); //stick_value(Lvalue);
-  Rvalue = climit(stick_value(map(Rvalue,0,4095,255,-255)));
+  Tvalue = climit(stick_value(map(Tvalue+30,0,4095,-255,255))); // reversed //stick_value(Rvalue);
+  Evalue = climit(stick_value(map(Evalue-38,0,4095,255,-255))); //stick_value(Lvalue);
+  Rvalue = climit(stick_value(map(Rvalue-67,0,4095,255,-255)));
   if (Rsp){
     // Data.armed =!Data.armed;
     Evalue = Evalue/2;

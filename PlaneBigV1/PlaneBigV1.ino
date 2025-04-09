@@ -12,18 +12,20 @@
 #define SERVO_AL1 3
 #define SERVO_AL2 2
 #define SERVO_EL 5
-Servo servoAL1, servoAL2, servoEL;
+Servo servoAL1, servoAL2, servoEL, esc;
 
 
 // ==========Servo Configuration==================
 
-const int servoAL1_offset = 0;  // Adjust for AL1 neutral position
-const int servoAL1_min = 15;  // Minimum angle
-const int servoAL1_max = 160; // Maximum angle
+const int neg_AL_offset = 10;
 
-const int servoAL2_offset = 70; // Adjust for AL2 neutral position
-const int servoAL2_min = 0;   // Minimum angle
-const int servoAL2_max = 110; // Maximum angle
+const int servoAL1_offset = 0;  // Adjust for AL1 neutral position
+const int servoAL1_min = 50;  // Minimum angle
+const int servoAL1_max = 120; // Maximum angle
+
+const int servoAL2_offset = 0; // Adjust for AL2 neutral position
+const int servoAL2_min = 50;   // Minimum angle
+const int servoAL2_max = 120; // Maximum angle
 
 const int servoEL_offset = 70;
 const int servoEL_min = 0;
@@ -91,13 +93,14 @@ void OnDataRecv(const esp_now_recv_info_t *recv_info, const uint8_t *incomingDat
 
 void setMotor(bool armed, int16_t throttle)
 {
-  int16_t power = armed ? (255 - constrain(throttle, 0, 255)) : 255;
+  int16_t power = armed ? (constrain(throttle, 0, 255)) : 0;
   Serial.println("Motor: " + String(power));
   // if(power >= 255){
   //   digitalWrite(MOTOR_PWM,HIGH);
   // }
-
-  analogWrite(MOTOR_PWM, power);
+  esc.write(power);
+  // analogWrite(MOTOR_PWM, power);
+  
 }
 
 void setup()
@@ -140,8 +143,12 @@ void setup()
   servoAL1.attach(SERVO_AL1);
   servoAL2.attach(SERVO_AL2);
   servoEL.attach(SERVO_EL);
+  esc.attach(MOTOR_PWM);
 
-
+  esc.write(255);
+  delay(2000);
+  esc.write(0);
+  
   lastPIDTime = millis();
 }
 
@@ -151,10 +158,10 @@ void loop()
   setMotor(true, rxData.throttle);
 
   // Calculate servo angles with offsets and limits
-  int elAngle = map(rxData.pitch, -255, 255, servoEL_min, servoEl_max) + servoEL_offset;
-  al1Angle = constrain(al1Angle, 1, 179);
+  int elAngle = map(rxData.pitch, -255, 255, servoEL_min, servoEL_max) + servoEL_offset;
+  elAngle = constrain(elAngle, 1, 179);
 
-  int al2Angle = map(rxData.roll, -255, 255, servoAL2_min, servoAL2_max) + servoAL2_offset;
+  int al2Angle = map(rxData.roll, -255, 255, servoAL2_min , servoAL2_max) + servoAL2_offset;
   al2Angle = constrain(al2Angle, 1, 179);
 
   int al1Angle = map(rxData.roll, 255, -255, servoAL1_min, servoAL1_max) + servoAL1_offset;

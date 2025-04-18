@@ -7,7 +7,7 @@
 #include <ESP32Servo.h>
 // #include <driver/ledc.h>
 
-#define MOTOR_PWM 4
+#define MOTOR_PWM 10
 
 #define SERVO_AL1 3
 #define SERVO_AL2 2
@@ -93,7 +93,7 @@ void OnDataRecv(const esp_now_recv_info_t *recv_info, const uint8_t *incomingDat
 
 void setMotor(bool armed, int16_t throttle)
 {
-  int16_t power = armed ? (constrain(throttle, 0, 255)) : 0;
+  int16_t power = armed ? (constrain(map(throttle,-255,255,-255,255), -255, 255)) : -255;
   Serial.println("Motor: " + String(power));
   // if(power >= 255){
   //   digitalWrite(MOTOR_PWM,HIGH);
@@ -145,10 +145,8 @@ void setup()
   servoEL.attach(SERVO_EL);
   esc.attach(MOTOR_PWM);
 
-  esc.write(255);
-  delay(2000);
   esc.write(0);
-  
+  delay(100);  
   lastPIDTime = millis();
 }
 
